@@ -20,6 +20,7 @@ export type WebhookEventType =
     | "group.participant"
     | "message.deleted"
     | "message.edited"
+    | "chat.update"
     | "test";
 
 interface WebhookPayload {

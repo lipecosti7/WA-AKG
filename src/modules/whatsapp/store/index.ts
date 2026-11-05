@@ -115,10 +115,22 @@ export const bindSessionStore = (sock: WASocket, sessionId: string, io: Server |
         }
 
 
+        for (const c of chats || []) emitArchive(c);
+
         // Note: Contacts and Chats are synced by src/modules/whatsapp/store/contacts.ts
         // We only handle messages here to avoid P2002 Unique Constraint Race Conditions.
         logger.debug("Store", `Finished syncing messages`);
     });
+
+    // Arquivar/desarquivar no celular: avisa o CRM (estado de arquivada não é guardado no banco do WA-AKG)
+    const emitArchive = (chat: any) => {
+        const jid = chat?.id;
+        const archived = chat?.archived ?? chat?.archive;
+        if (!jid || typeof archived !== "boolean") return;
+        dispatchWebhook(sessionId, "chat.update", { jid: normalizeJid(jid), archived }).catch(() => {});
+    };
+    sock.ev.on('chats.update', (updates) => { for (const c of updates || []) emitArchive(c); });
+    sock.ev.on('chats.upsert', (chats) => { for (const c of chats || []) emitArchive(c); });
 
     // Handle Contacts Upsert
     sock.ev.on('contacts.upsert', async (contacts) => {

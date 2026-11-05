@@ -1,6 +1,7 @@
 import { NextResponse, NextRequest } from "next/server";
 import { waManager } from "@/modules/whatsapp/manager";
 import { getAuthenticatedUser, canAccessSession } from "@/lib/api-auth";
+import { prisma } from "@/lib/prisma";
 
 // PUT: Archive or unarchive chat
 export async function PUT(
@@ -34,12 +35,19 @@ export async function PUT(
 
         const decodedJid = decodeURIComponent(jid);
 
-        // Archive or unarchive chat
-        // Note: lastMessages is required by Baileys but can be empty array
-        await instance.socket.chatModify(
-            { archive: archive, lastMessages: [] },
-            decodedJid
-        );
+        // O WhatsApp só aceita arquivar/desarquivar quando recebe a última mensagem da conversa
+        const dbSession = await prisma.session.findUnique({ where: { sessionId }, select: { id: true } });
+        const last = dbSession
+            ? await prisma.message.findFirst({
+                where: { sessionId: dbSession.id, remoteJid: decodedJid },
+                orderBy: { timestamp: "desc" },
+                select: { keyId: true, fromMe: true, timestamp: true },
+            })
+            : null;
+        const lastMessages = last
+            ? [{ key: { remoteJid: decodedJid, id: last.keyId, fromMe: last.fromMe }, messageTimestamp: Math.floor(last.timestamp.getTime() / 1000) }]
+            : [];
+        await instance.socket.chatModify({ archive: archive, lastMessages }, decodedJid);
 
         return NextResponse.json({ 
             success: true,
