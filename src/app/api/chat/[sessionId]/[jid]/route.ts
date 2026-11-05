@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { resolveToPhoneJid, isLidJid } from "@/lib/jid-utils";
 import { NextResponse, NextRequest } from "next/server";
 import { getAuthenticatedUser, canAccessSession } from "@/lib/api-auth";
+import { ChatService } from "@/modules/whatsapp/chat.service";
 
 export async function GET(
     request: NextRequest,
@@ -33,6 +34,15 @@ export async function GET(
         }
 
         const dbSessionId = session.id;
+
+        // Paginação opcional (?limit=&before=): usa ChatService.getMessages, que também junta variantes LID/telefone
+        const sp = request.nextUrl.searchParams;
+        if (sp.has("limit") || sp.has("before")) {
+            const limitParam = parseInt(sp.get("limit") || "", 10);
+            const limit = Number.isFinite(limitParam) && limitParam > 0 ? Math.min(limitParam, 500) : 100;
+            const result = await ChatService.getMessages(dbSessionId, decodedJid, limit, sp.get("before") || undefined);
+            return NextResponse.json({ status: true, data: result.messages, hasMore: result.hasMore });
+        }
 
         const messages = await prisma.message.findMany({
             where: {

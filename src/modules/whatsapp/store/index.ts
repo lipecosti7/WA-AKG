@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import type { WASocket, WAMessage, Contact } from "@whiskeysockets/baileys";
 import { normalizeMessageContent } from "@whiskeysockets/baileys";
-import { onMessageReceived, onMessageSent, dispatchWebhook, downloadAndSaveMedia } from "@/lib/webhook";
+import { onMessageReceived, onMessageSent, dispatchWebhook, downloadAndSaveMedia, extractExtraContent } from "@/lib/webhook";
 import { handleBotCommand, setSessionStartTime } from "../bot/command-handler";
 import { resolveToPhoneJid, isLidJid, normalizeJid } from "@/lib/jid-utils";
 
@@ -501,6 +501,22 @@ async function processAndSaveMessage(
     } else if (messageContent?.contactMessage) {
         messageType = "CONTACT";
         text = messageContent.contactMessage.displayName || "";
+    } else if (messageContent) {
+        // Tipos fora do enum MessageType: grava como TEXT com rótulo legível (antes ficava TEXT vazio)
+        const extra = extractExtraContent(messageContent);
+        const enumOk = ["TEXT", "IMAGE", "VIDEO", "AUDIO", "DOCUMENT", "STICKER", "LOCATION", "CONTACT"];
+        const rotulos: Record<string, string> = {
+            POLL: "📊 Enquete", EVENT: "📅 Evento", GROUP_INVITE: "👥 Convite de grupo", PRODUCT: "🛍️ Produto", ORDER: "🧾 Pedido",
+        };
+        if (enumOk.includes(extra.type)) {
+            messageType = extra.type;
+            text = extra.content;
+        } else {
+            messageType = "TEXT";
+            const rot = rotulos[extra.type] || `[${extra.type.toLowerCase()}]`;
+            text = extra.content ? `${rot}
+${extra.content}` : rot;
+        }
     }
 
     // Determine effective participant for groups

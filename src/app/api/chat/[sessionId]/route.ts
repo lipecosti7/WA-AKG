@@ -33,8 +33,15 @@ export async function GET(
 
         const dbSessionId = session.id;
 
-        // Fetch chats using the new ChatService
-        const chatList = await ChatService.getChatsList(session.id);
+        // Paginação opcional: ?limit=200&before=<ISO>&filter=all|private|groups (padrão: 50, como antes)
+        const sp = request.nextUrl.searchParams;
+        const limitParam = parseInt(sp.get("limit") || "", 10);
+        const limit = Number.isFinite(limitParam) && limitParam > 0 ? Math.min(limitParam, 1000) : 50;
+        const before = sp.get("before") || undefined;
+        const filterParam = sp.get("filter");
+        const filter = filterParam === "private" || filterParam === "groups" || filterParam === "all" ? filterParam : undefined;
+
+        const chatList = await ChatService.getChatsList(session.id, limit, before, undefined, filter);
 
         return NextResponse.json({ status: true, message: "Chats fetched successfully", data: chatList });
     } catch (error) {

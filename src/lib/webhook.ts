@@ -608,6 +608,8 @@ export async function onMessageReceived(sessionId: string, message: any, existin
         fileUrl: fileUrl,
         caption: normalized.caption,
         quoted: quoted,
+        messageKeys: Object.keys(message.message || {}),
+        remoteJidAlt: message.key?.remoteJidAlt || null,
 
     });
 }
@@ -658,6 +660,8 @@ export async function onMessageSent(sessionId: string, message: any, existingFil
         fileUrl: fileUrl,
         caption: normalized.caption,
         quoted: quoted,
+        messageKeys: Object.keys(message.message || {}),
+        remoteJidAlt: message.key?.remoteJidAlt || null,
 
         timestamp: Date.now()
     });
@@ -787,9 +791,52 @@ function extractMessageContent(msg: any): { type: string, content: string, capti
     } else if (messageContent.listResponseMessage) {
         messageType = "LIST_RESPONSE";
         text = messageContent.listResponseMessage.singleSelectReply?.selectedRowId || messageContent.listResponseMessage.title || "";
+    } else {
+        // Tipos que antes viravam TEXT vazio
+        const extra = extractExtraContent(messageContent);
+        messageType = extra.type;
+        text = extra.content;
     }
 
     return { type: messageType, content: text, caption };
+}
+
+/**
+ * Tipos de mensagem não cobertos acima (vídeo-recado, enquete, evento, álbum, edição...).
+ * Nunca devolve TEXT vazio: se o tipo for desconhecido, devolve o nome da chave do Baileys.
+ */
+export function extractExtraContent(mc: any): { type: string; content: string } {
+    if (!mc) return { type: "UNKNOWN", content: "" };
+    if (mc.ptvMessage) return { type: "VIDEO", content: mc.ptvMessage.caption || "" };
+    const poll = mc.pollCreationMessage || mc.pollCreationMessageV2 || mc.pollCreationMessageV3 || mc.pollCreationMessageV5;
+    if (poll) {
+        const opts = (poll.options || []).map((o: any) => `• ${o.optionName}`).join("\n");
+        return { type: "POLL", content: `${poll.name || ""}${opts ? `\n${opts}` : ""}`.trim() };
+    }
+    if (mc.lottieStickerMessage) return { type: "STICKER", content: "" };
+    if (mc.eventMessage) return { type: "EVENT", content: mc.eventMessage.name || mc.eventMessage.description || "" };
+    if (mc.albumMessage) return { type: "IMAGE", content: "" };
+    if (mc.editedMessage) {
+        const inner = mc.editedMessage.message?.protocolMessage?.editedMessage || mc.editedMessage.message || {};
+        return { type: "TEXT", content: inner.conversation || inner.extendedTextMessage?.text || "" };
+    }
+    if (mc.groupInviteMessage) return { type: "GROUP_INVITE", content: mc.groupInviteMessage.groupName || "" };
+    if (mc.contactsArrayMessage) {
+        return { type: "CONTACT", content: (mc.contactsArrayMessage.contacts || []).map((c: any) => c.displayName).join(", ") };
+    }
+    if (mc.liveLocationMessage) {
+        return { type: "LOCATION", content: `${mc.liveLocationMessage.degreesLatitude},${mc.liveLocationMessage.degreesLongitude}` };
+    }
+    if (mc.productMessage) return { type: "PRODUCT", content: mc.productMessage.product?.title || "" };
+    if (mc.orderMessage) return { type: "ORDER", content: mc.orderMessage.message || "" };
+    if (mc.buttonsMessage) return { type: "TEXT", content: mc.buttonsMessage.contentText || "" };
+    if (mc.templateMessage) {
+        const t = mc.templateMessage.hydratedTemplate || mc.templateMessage.hydratedFourRowTemplate || {};
+        return { type: "TEXT", content: t.hydratedContentText || "" };
+    }
+    if (mc.listMessage) return { type: "TEXT", content: mc.listMessage.description || mc.listMessage.title || "" };
+    const first = Object.keys(mc).find((k) => k !== "messageContextInfo") || "unknown";
+    return { type: first.replace(/Message$/, "").toUpperCase(), content: "" };
 }
 
 
