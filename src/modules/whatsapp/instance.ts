@@ -68,7 +68,9 @@ export class WhatsAppInstance {
             },
             browser: ["Ubuntu", "Chrome", "20.0.04"],
             markOnlineOnConnect: botConfig?.alwaysOnline ?? true,
-            syncFullHistory: true,
+            // false: o celular não empurra o histórico inteiro (~10 mil msgs) logo após o pareamento.
+            // Pedir tudo isso de uma vez deixava a sessão instável e o WhatsApp acabava removendo o aparelho (device_removed).
+            syncFullHistory: false,
         });
 
         // Attach Lekzo Baileys compatible helper methods
