@@ -395,7 +395,10 @@ async function processAndSaveMessage(
         'protocolMessage',
         'senderKeyDistributionMessage',
         'reactionMessage', // Optional: User might want reactions, but usually "kosong" means junk
-        'keepInChatMessage'
+        'keepInChatMessage',
+        'messageContextInfo',
+        'pollUpdateMessage',
+        'encReactionMessage'
     ];
 
     // If message only contains ignored types, skip (since edit and revoke handled above)
