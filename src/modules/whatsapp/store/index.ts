@@ -557,10 +557,16 @@ ${extra.content}` : rot;
 
     // Download Media First (to save URL to DB)
     let fileUrl: string | null = null;
-    try {
-        fileUrl = await downloadAndSaveMedia(msg, sessionId);
-    } catch (e) {
-        logger.error("Store", "Error downloading media in store", e);
+    // Histórico antigo não baixa mídia: centenas de downloads no CDN do WhatsApp logo após o pareamento
+    // não são o comportamento de um cliente real e contribuíam para o aparelho ser removido.
+    const tsMs = Number((msg.messageTimestamp as any)?.toString?.() ?? msg.messageTimestamp ?? 0) * 1000;
+    const recente = triggerWebhook || (tsMs > 0 && Date.now() - tsMs < 24 * 3600 * 1000);
+    if (recente) {
+        try {
+            fileUrl = await downloadAndSaveMedia(msg, sessionId);
+        } catch (e) {
+            logger.error("Store", "Error downloading media in store", e);
+        }
     }
 
     // Extract contextInfo (quoted message ID)
